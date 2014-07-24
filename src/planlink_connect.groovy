@@ -181,7 +181,11 @@ def checkAndUpdatePlantIfNeeded(plant, expected_plant_name){
     if (plant.name != expected_plant_name) {
         log.debug "updating plant for - ${expected_plant_name}"
         plant_put_params["path"] = "/api/v1/plants/${plant.key}"
-        plant_put_params["body"] = "{name: ${expected_plant_name}}"
+        def plant_put_body_map = [
+                name: expected_plant_name
+        ]
+        def plant_put_body_json_builder = new JsonBuilder(plant_put_body_map)
+        plant_put_params["body"] = plant_put_body_json_builder.toString()
         httpPut(plant_put_params) { plant_put_response ->
             parse_api_response(plant_put_response, 'updating plant name')
         }
