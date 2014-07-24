@@ -219,10 +219,10 @@ def moistureHandler(event){
                     if (sensor_device.id == event.deviceId){
                         sensor_device.setStatusIcon(plant.status)
                         if (plant.last_measurements && plant.last_measurements[0].plant_fuel_level){
-                            sensor_device.setPlantFuelLevel(plant.last_measurements[0].plant_fuel_level * 100)
+                            sensor_device.setPlantFuelLevel(plant.last_measurements[0].plant_fuel_level * 100 as int)
                         }
                         if (plant.last_measurements && plant.last_measurements[0].battery){
-                            sensor_device.setBatteryLevel(plant.last_measurements[0].battery * 100)
+                            sensor_device.setBatteryLevel(plant.last_measurements[0].battery * 100 as int)
                         }
                     }
                 }
