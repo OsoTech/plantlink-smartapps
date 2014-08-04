@@ -25,9 +25,13 @@ metadata {
     }
 
     simulator {
-        status "moisture": "read attr - raw: C072010B040A0001290000, dni: C072, endpoint: 01, cluster: 0B04, size: 0A, attrId: 0100, encoding: 29, value: 0000"
+        status "zero_moisture": "read attr - raw: C072010B040A0001290000, dni: C072, endpoint: 01, cluster: 0B04, size: 0A, attrId: 0100, encoding: 29, value: 0000"
+        status "low_moisture": "read attr - raw: C072010B040A0001290000, dni: C072, endpoint: 01, cluster: 0B04, size: 0A, attrId: 0100, encoding: 29, value: 0bda"
+        status "high_moisture": "read attr - raw: C072010B040A0001290000, dni: C072, endpoint: 01, cluster: 0B04, size: 0A, attrId: 0100, encoding: 29, value: 196d"
         status "battery": "read attr - raw: C0720100010A000021340A, dni: C072, endpoint: 01, cluster: 0001, size: 0A, attrId: 0000, encoding: 21, value: 0a34"
         status "version": "read attr - raw: C072010000080100201C, dni: C072, endpoint: 01, cluster: 0000, size: 08, attrId: 0001, encoding: 20, value: 1c"
+        status "moisture_catchall": "catchall: 0104 0B04 01 01 0140 00 FE40 00 00 0000 0A 01 0001291300"
+        status "battery_catchall": "catchall: 0104 0001 01 01 0140 00 FE40 00 00 0000 0A 01 000021860B"
     }
 
     tiles {
@@ -42,19 +46,31 @@ metadata {
 //            state "Low Battery", label: "Low Battery", icon:"st.Home.home13"
 //            state "Waiting on First Measurement", label: "Calibrating", icon:"st.Home.home13"
 //        }
+        standardTile("tooDryTile", "device.tooDryFlag", inactiveLabel: True, decoration: "flat"){
+            state "Off", label: "Too Dry", backgroundColor:""
+            state "On", label: "Too Dry", backgroundColor:"#bc2323"
+        }
+        standardTile("moistureGoodTile", "device.goodFlag", inactiveLabel: True, decoration: "flat"){
+            state "Off", label: "Good", backgroundColor:""
+            state "On", label: "Good", backgroundColor:"#44b621"
+        }
+        standardTile("tooWetTile", "device.tooWetFlag", inactiveLabel: True, decoration: "flat"){
+            state "Off", label: "Too Wet", backgroundColor:""
+            state "On", label: "Too Wet", backgroundColor:"#bc2323"
+        }
         standardTile("plantStatusTile", "device.plantStatus", inactiveLabel: True, decoration: "flat") {
             state "Not Synced", label:"Not Synced", icon:"st.Home.home13"
-            state "Needs Water", label: "Too Dry", icon:"st.Home.home13"
-            state "Dry", label: "A Little Dry", icon:"st.Home.home13"
-            state "Good", label: "Good", icon:"st.Home.home13"
-            state "Good", label: "Good", icon:"st.Home.home13"
-            state "Too Wet", label: "Too Wet", icon:"st.Home.home13"
-            state "Too Dry", label: "Sensor is Too Dry", icon:"st.Home.home13"
+            state "Needs Water", label: "Too Dry", icon:"st.Home.home13", backgroundColor:"#bc2323"
+            state "Dry", label: "Dry", icon:"st.Home.home13", backgroundColor:"#bc2323"
+            state "Good", label: "Good", icon:"st.Home.home13", backgroundColor:"#44b621"
+            state "Good", label: "Good", icon:"st.Home.home13", backgroundColor:"#44b621"
+            state "Too Wet", label: "Too Wet", icon:"st.Home.home13", backgroundColor:"#1e9cbb"
+            state "Too Dry", label: "Sensor is Too Dry", icon:"st.Home.home13", backgroundColor:"#bc2323"
             state "Low Battery", label: "Low Battery", icon:"st.Home.home13"
             state "Syncing", label: "Calibrating", icon:"st.Home.home13"
         }
         valueTile("plantStatusTextTile", "device.plantStatus", inactiveLabel: True, decoration: "flat") {
-            state "plantStatusTextTile", label:'${currentValue}%'
+            state "plantStatusTextTile", label:'${currentValue}'
         }
 
         valueTile("plantFuelLevelTile", "device.plantFuelLevel", width: 2, height: 2) {
@@ -76,7 +92,7 @@ metadata {
         }
 
             main "plantStatusTile"
-            details(["plantStatusTile", "plantFuelLevelTile", "battery", 'plantStatusTextTile'])
+            details(["tooDryTile", "moistureGoodTile", "tooWetTile", "plantFuelLevelTile", "battery", 'plantStatusTextTile'])
         }
 }
 
@@ -95,32 +111,59 @@ def setStatusIcon(value){
     def status = ''
     if (value == '0'){
         status = 'Needs Water'
+        setDerivedAttribute("tooDryFlag", "On")
+        setDerivedAttribute("goodFlag", "Off")
+        setDerivedAttribute("tooWetFlag", "Off")
     }
     else if (value == '1'){
         status = 'Dry'
+        setDerivedAttribute("tooDryFlag", "On")
+        setDerivedAttribute("goodFlag", "Off")
+        setDerivedAttribute("tooWetFlag", "Off")
     }
     else if (value == '2'){
         status = 'Good'
+        setDerivedAttribute("tooDryFlag", "Off")
+        setDerivedAttribute("goodFlag", "On")
+        setDerivedAttribute("tooWetFlag", "Off")
     }
     else if (value == '3'){
         status = 'Good'
+        setDerivedAttribute("tooDryFlag", "Off")
+        setDerivedAttribute("goodFlag", "On")
+        setDerivedAttribute("tooWetFlag", "Off")
     }
     else if (value == '4'){
         status = 'Too Wet'
+        setDerivedAttribute("tooDryFlag", "Off")
+        setDerivedAttribute("goodFlag", "Off")
+        setDerivedAttribute("tooWetFlag", "On")
     }
     else if (value == 'No Soil'){
         status = 'Too Dry'
         setPlantFuelLevel(0)
+        setDerivedAttribute("tooDryFlag", "On")
+        setDerivedAttribute("goodFlag", "Off")
+        setDerivedAttribute("tooWetFlag", "Off")
     }
     else if (value == 'Recently Watered'){
         status = 'Watered'
         setPlantFuelLevel(100)
+        setDerivedAttribute("tooDryFlag", "Off")
+        setDerivedAttribute("goodFlag", "On")
+        setDerivedAttribute("tooWetFlag", "Off")
     }
     else if (value == 'Low Battery'){
         status = 'Low Battery'
+        setDerivedAttribute("tooDryFlag", "Off")
+        setDerivedAttribute("goodFlag", "Off")
+        setDerivedAttribute("tooWetFlag", "Off")
     }
     else if (value == 'Waiting on First Measurement'){
         status = 'Syncing'
+        setDerivedAttribute("tooDryFlag", "Off")
+        setDerivedAttribute("goodFlag", "Off")
+        setDerivedAttribute("tooWetFlag", "Off")
     }
     else{
         status = "?"
@@ -129,11 +172,17 @@ def setStatusIcon(value){
 }
 
 def setPlantFuelLevel(value){
-    sendEvent("name":"plantFuelLevel", "value":value, "description":statusText, displayed: true, isStateChange: true)
+    setDerivedAttribute("plantFuelLevel", value)
+}
+
+def setDerivedAttribute(name, value){
+//    sendEvent("name":name, "value":value, "description":statusText, displayed: true, isStateChange: true)
+    sendEvent("name":name, "value":value, "description":statusText, displayed: true, isStateChange: true)
 }
 
 def setBatteryLevel(value){
-    sendEvent("name":"linkBatteryLevel", "value":value, "description":statusText, displayed: true, isStateChange: true)
+//    sendEvent("name":"linkBatteryLevel", "value":value, "description":statusText, displayed: true, isStateChange: true)
+    setDerivedAttribute("linkBatteryLevel", value)
 }
 
 // parse events into attributes
@@ -154,6 +203,9 @@ def parse(String description) {
             zigbeedeviceid: device.zigbeeId,
             created: new Date().time /1000 as int
     ]
+    if(!description_map.value){
+        return
+    }
     if (description_map.cluster == "0000"){
         //then this is version and can be ignored
         log.debug "zigbee id ${device.zigbeeId} version ${description_map.value}"
@@ -179,6 +231,16 @@ def parse(String description) {
 
 
 def parseDescriptionAsMap(description) {
+    def zigbee_map = zigbee.parse(description)
+    if (zigbee_map){
+        def return_map = [cluster: zigbee_map.clusterId]
+        log.debug(zigbee_map)
+        if (!zigbee_map.text)
+        {
+            return_map.value = null
+            return return_map
+        }
+	}
     (description - "read attr - ").split(",").inject([:]) { map, param ->
         def nameAndValue = param.split(":")
         map += [(nameAndValue[0].trim()):nameAndValue[1].trim()]
