@@ -47,15 +47,15 @@ metadata {
 //            state "Waiting on First Measurement", label: "Calibrating", icon:"st.Home.home13"
 //        }
         standardTile("tooDryTile", "device.tooDryFlag", inactiveLabel: True, decoration: "flat"){
-            state "Off", label: "Too Dry", backgroundColor:""
+            state "Off", label: "", backgroundColor:""
             state "On", label: "Too Dry", backgroundColor:"#bc2323"
         }
         standardTile("moistureGoodTile", "device.goodFlag", inactiveLabel: True, decoration: "flat"){
-            state "Off", label: "Good", backgroundColor:""
+            state "Off", label: "", backgroundColor:""
             state "On", label: "Good", backgroundColor:"#44b621"
         }
         standardTile("tooWetTile", "device.tooWetFlag", inactiveLabel: True, decoration: "flat"){
-            state "Off", label: "Too Wet", backgroundColor:""
+            state "Off", label: "", backgroundColor:""
             state "On", label: "Too Wet", backgroundColor:"#bc2323"
         }
         standardTile("plantStatusTile", "device.plantStatus", inactiveLabel: True, decoration: "flat") {
@@ -92,7 +92,7 @@ metadata {
         }
 
             main "plantStatusTile"
-            details(["tooDryTile", "moistureGoodTile", "tooWetTile", "plantFuelLevelTile", "battery", 'plantStatusTextTile'])
+            details(["tooDryTile", "moistureGoodTile", "tooWetTile", "plantFuelLevelTile", "battery", 'plantStatusTextTile', 'plantStatusTile'])
         }
 }
 
