@@ -311,7 +311,7 @@ def swapToken()
         jsonMap = resp.data
     }
 
-    log.debug "SCOTT: swapped token for $jsonMap"
+    log.debug "swapped token for $jsonMap"
     debugEvent ("swapped token for $jsonMap", true)
 
     atomicState.refreshToken = jsonMap.refresh_token

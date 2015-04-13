@@ -21,7 +21,7 @@ metadata {
         attribute "linkBatteryLevel","string"
 
 
-        fingerprint profileId: "0104", deviceId: "0302", inClusters: "0000,0001,0003,0B04,FC08", outClusters: "0003"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0B04,FC08", outClusters: "0003"
     }
 
     simulator {
@@ -31,53 +31,26 @@ metadata {
     }
 
     tiles {
-//        standardTile("plantStatusTile", "device.plantStatus", inactiveLabel: True, decoration: "flat") {
-//            state "Not Synced", label:"Not Synced", icon:"st.Home.home13"
-//            state "0", label: "Too Dry", icon:"st.Home.home13"
-//            state "1", label: "A Little Dry", icon:"st.Home.home13"
-//            state "2", label: "Good", icon:"st.Home.home13"
-//            state "3", label: "Good", icon:"st.Home.home13"
-//            state "4", label: "Too Wet", icon:"st.Home.home13"
-//            state "No Soil", label: "Sensor is Too Dry", icon:"st.Home.home13"
-//            state "Low Battery", label: "Low Battery", icon:"st.Home.home13"
-//            state "Waiting on First Measurement", label: "Calibrating", icon:"st.Home.home13"
-//        }
-        standardTile("plantStatusTile", "device.plantStatus", inactiveLabel: True, decoration: "flat") {
-            state "Not Synced", label:"Not Synced", icon:"st.Home.home13"
-            state "Needs Water", label: "Too Dry", icon:"st.Home.home13"
-            state "Dry", label: "A Little Dry", icon:"st.Home.home13"
-            state "Good", label: "Good", icon:"st.Home.home13"
-            state "Good", label: "Good", icon:"st.Home.home13"
-            state "Too Wet", label: "Too Wet", icon:"st.Home.home13"
-            state "Too Dry", label: "Sensor is Too Dry", icon:"st.Home.home13"
-            state "Low Battery", label: "Low Battery", icon:"st.Home.home13"
-            state "Syncing", label: "Calibrating", icon:"st.Home.home13"
-        }
-        valueTile("plantStatusTextTile", "device.plantStatus", inactiveLabel: True, decoration: "flat") {
-            state "plantStatusTextTile", label:'${currentValue}%'
+        standardTile("Title", "device.label") {
+            state "label", label:'${device.label}'
         }
 
-        valueTile("plantFuelLevelTile", "device.plantFuelLevel", width: 2, height: 2) {
-            state("plantFuelLevel", label: '${currentValue}% Fuel', unit: "",
-                    backgroundColors: [
-                            [value: 50, color: "#44b621"],
-                            [value: 0, color: "#bc2323"],
-                            [value: 10, color: "#d04e00"],
-                            [value: 20, color: "#f1d801"],
-                            [value: 50, color: "#44b621"],
-                            [value: 80, color: "#90d2a7"],
-                            [value: 100, color: "#1e9cbb"],
-                            [value: 125, color: "#153591"],
-                    ]
+        valueTile("plantFuelLevelTile", "device.plantFuelLevel", width: 1, height: 1) {
+            state("plantFuelLevel", label: '${currentValue}% Fuel', unit: ""
             )
         }
+
+        valueTile("plantStatusTextTile", "device.plantStatus", inactiveLabel: True, decoration: "flat", width: 2, height: 2) {
+            state "plantStatusTextTile", label:'${currentValue}'
+        }
+
         valueTile("battery", "device.linkBatteryLevel", inactiveLabel: false, decoration: "flat") {
             state "battery", label:'${currentValue}% battery', unit:""
         }
 
-            main "plantStatusTile"
-            details(["plantStatusTile", "plantFuelLevelTile", "battery", 'plantStatusTextTile'])
-        }
+        main "plantStatusTextTile"
+        details(['plantStatusTextTile', "plantFuelLevelTile", "battery"])
+    }
 }
 
 def setStatusIcon(value){
