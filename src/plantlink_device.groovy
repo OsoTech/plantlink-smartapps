@@ -21,7 +21,7 @@ metadata {
         attribute "linkBatteryLevel","string"
 
 
-        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0B04,FC08", outClusters: "0003"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0B04"
     }
 
     simulator {
