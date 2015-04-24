@@ -27,7 +27,7 @@ preferences {
     page(name: "auth", title: "PlantLink", nextPage:"deviceList", content:"authPage", uninstall: true)
     page(name: "deviceList", title: "PlantLink", install:true, uninstall:true){
         section {
-            input "plantlinksensors", "capability.sensor", title: "Select PlantLink sensors to connect", multiple: true, required: true
+            input "plantlinksensors", "device.PlantlinkSensor", title: "Select PlantLink sensors to connect", multiple: true, required: true
         }
     }
 }
