@@ -34,8 +34,8 @@ definition(
 }
 
 preferences {
-    page(name: "auth", title: "Step 1 of 2", nextPage:"deviceList", content:"authPage", uninstall: true)
-    page(name: "deviceList", title: "Step 2 of 2", install:true, uninstall:true){
+    page(name: "auth", title: "Step 1 of 2", nextPage:"deviceList", content:"authPage")
+    page(name: "deviceList", title: "Step 2 of 2", install:true, uninstall:false){
         section {
             input "plantlinksensors", "capability.sensor", title: "Select PlantLink sensors", multiple: true, required: true
         }
@@ -56,28 +56,27 @@ def authPage(){
         atomicState.accessToken = state.accessToken
     }
 
-    def description = "Click to login to myplantlink.com"
+    def redirectUrl = oauthInitUrl()
     def uninstallAllowed = false
     def oauthTokenProvided = false
-
     if(atomicState.authToken){
-        description = "Tap Next in the upper right corner"
         uninstallAllowed = true
         oauthTokenProvided = true
     }
 
-    def redirectUrl = oauthInitUrl()
-
     if (!oauthTokenProvided) {
         return dynamicPage(name: "auth", title: "Step 1 of 2", nextPage:null, uninstall:uninstallAllowed) {
             section(){
-                href url:redirectUrl, style:"embedded", required:true, title:"PlantLink", description:description
+                href url:redirectUrl, style:"embedded", required:true, title:"PlantLink", description:"Click to login to myplantlink.com"
             }
         }
     }else{
         return dynamicPage(name: "auth", title: "Step 1 of 2 - Completed", nextPage:"deviceList", uninstall:uninstallAllowed) {
             section(){
-                href url:redirectUrl, style:"embedded", state:"complete", title:"PlantLink", description:description
+               paragraph "You are logged in to myplantlink.com, tap next to continue", image:"https://oso-tech.appspot.com/images/PLlogo.png"
+             }
+             section("Other Options"){
+               href url:redirectUrl, style:"embedded", title:"Log in as different user", required:true, description:"Tap to switch accounts"
             }
         }
     }
