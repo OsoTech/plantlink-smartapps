@@ -1,33 +1,43 @@
 /**
- *	PlantLink Service Manager
+ *  Required PlantLink Connector
+ *  This SmartApp forwards the raw data of the deviceType to myplantlink.com
+ *  and returns it back to your device after calculating soil and plant type.
  *
- *	Author: Dan Widing
+ *  Copyright 2015 Oso Technologies
  *
- * available functions at https://graph.api.smartthings.com/ide/doc/smartApp
- * http should accept data like http://groovy.codehaus.org/modules/http-builder/apidocs/groovyx/net/http/HTTPBuilder.RequestConfigDelegate.html#setPropertiesFromMap(java.util.Map)
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
  */
-
-
 import groovy.json.JsonBuilder
-
 import java.util.regex.Matcher
 import java.util.regex.Pattern
-
+ 
 definition(
-        name: "PlantLink Connect",
-        namespace: "OsoTech",
-        author: "Oso Technologies",
-        description: "Connect PlantLink to your SmartThings Account",
-        category: "",
-        iconUrl: "https://oso-tech.appspot.com/images/apple-touch-icon-76x76-precomposed.png",
-        iconX2Url: "https://oso-tech.appspot.com/images/apple-touch-icon-120x120-precomposed.png"
-)
+    name: "Required PlantLink Connector",
+    namespace: "Osotech",
+    author: "Oso Technologies",
+    description: "This SmartApp connects to myplantlink.com and forwards the device data to it so it can calculate easy to read plant status for your specific plant's needs.",
+    category: "Convenience",
+    iconUrl: "https://oso-tech.appspot.com/images/apple-touch-icon-76x76-precomposed.png",
+    iconX2Url: "https://oso-tech.appspot.com/images/apple-touch-icon-120x120-precomposed.png",
+    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png"
+) {
+    appSetting "client_id"
+    appSetting "client_secret"
+}
 
 preferences {
-    page(name: "auth", title: "PlantLink", nextPage:"deviceList", content:"authPage", uninstall: true)
-    page(name: "deviceList", title: "PlantLink", install:true, uninstall:true){
+    page(name: "auth", title: "Step 1 of 2", nextPage:"deviceList", content:"authPage", uninstall: true)
+    page(name: "deviceList", title: "Step 2 of 2", install:true, uninstall:true){
         section {
-            input "plantlinksensors", "capability.sensor", title: "Select PlantLink sensors to connect", multiple: true, required: true
+            input "plantlinksensors", "capability.sensor", title: "Select PlantLink sensors", multiple: true, required: true
         }
     }
 }
@@ -40,61 +50,37 @@ mappings {
     }
 }
 
-def authPage()
-{
-    log.debug "authPage()"
-
-    if(!atomicState.accessToken)
-    {
-        log.debug "about to create access token"
-        createAccessToken() // creates an access token which is needed to be able to hit a url
+def authPage(){
+    if(!atomicState.accessToken){
+        createAccessToken()
         atomicState.accessToken = state.accessToken
     }
 
-
-    def description = "Required"
+    def description = "Click to login to myplantlink.com"
     def uninstallAllowed = false
     def oauthTokenProvided = false
 
-    if(atomicState.authToken)
-    {
-        // TODO: Check if it's valid
-        if(true)
-        {
-            description = "You are connected."
-            uninstallAllowed = true
-            oauthTokenProvided = true
-        }
-        else
-        {
-            description = "Required" // Worth differentiating here vs. not having atomicState.authToken?
-            oauthTokenProvided = false
-        }
+    if(atomicState.authToken){
+        description = "Tap Next in the upper right corner"
+        uninstallAllowed = true
+        oauthTokenProvided = true
     }
 
     def redirectUrl = oauthInitUrl()
 
-    log.debug "RedirectUrl = ${redirectUrl}"
-
     if (!oauthTokenProvided) {
-
-        return dynamicPage(name: "auth", title: "Login", nextPage:null, uninstall:uninstallAllowed) {
+        return dynamicPage(name: "auth", title: "Step 1 of 2", nextPage:null, uninstall:uninstallAllowed) {
             section(){
-                paragraph "Tap below to log in to PlantLink service and authorize SmartThings access."
                 href url:redirectUrl, style:"embedded", required:true, title:"PlantLink", description:description
             }
         }
-    } else{
-        return dynamicPage(name: "auth", title: "LogIn", nextPage:"deviceList", uninstall:uninstallAllowed) {
+    }else{
+        return dynamicPage(name: "auth", title: "Step 1 of 2 - Completed", nextPage:"deviceList", uninstall:uninstallAllowed) {
             section(){
-                paragraph "Tap Next to continue to setup your Sensors."
                 href url:redirectUrl, style:"embedded", state:"complete", title:"PlantLink", description:description
             }
         }
     }
-
-    //previously there was an else here for alternate log in that I didn't understand so I removed it
-
 }
 
 def installed() {
@@ -108,16 +94,22 @@ def updated() {
     initialize()
 }
 
+def uninstalled() {
+    if (plantlinksensors){
+        plantlinksensors.each{ sensor_device ->
+            sensor_device.setInstallSmartApp("needSmartApp")
+        }
+    }
+}
+
 def initialize() {
-    // TODO: subscribe to attributes, devices, locations, etc.
-    // subscribe to battery and moisture events from links
     atomicState.attached_sensors = [:]
     if (plantlinksensors){
-        log.debug "initialize starting"
         subscribe(plantlinksensors, "moisture_status", moistureHandler)
         subscribe(plantlinksensors, "battery_status", batteryHandler)
         plantlinksensors.each{ sensor_device ->
             sensor_device.setStatusIcon("Waiting on First Measurement")
+            sensor_device.setInstallSmartApp("connectedToSmartApp")
         }
     }
 }
@@ -141,10 +133,9 @@ def dock_sensor(device_serial, expected_plant_name) {
             headers    : ["Content-Type": "application/json", "Authorization": "Bearer ${atomicState.authToken}"],
             contentType: "application/json",
     ]
-    log.debug "docking - ${expected_plant_name}"
+    log.debug "Creating new plant on myplantlink.com - ${expected_plant_name}"
     httpPost(docking_params) { docking_response ->
         if (parse_api_response(docking_response, "Docking a link")) {
-
             if (docking_response.data.plants.size() == 0) {
                 log.debug "creating plant for - ${expected_plant_name}"
                 plant_post_body_map["name"] = expected_plant_name
@@ -159,7 +150,6 @@ def dock_sensor(device_serial, expected_plant_name) {
                     }
                 }
             } else {
-//                log.debug "checking plant for - ${expected_plant_name}"
                 def plant = docking_response.data.plants[0]
                 def attached_map = atomicState.attached_sensors
                 attached_map[device_serial] = plant
@@ -168,21 +158,20 @@ def dock_sensor(device_serial, expected_plant_name) {
             }
         }
     }
-    return True
-
+    return true
 }
 
 def checkAndUpdatePlantIfNeeded(plant, expected_plant_name){
     def plant_put_params = [
-            uri        : "https://oso-tech.appspot.com",
-            headers    : ["Content-Type": "application/json", "Authorization": "Bearer ${atomicState.authToken}"],
-            contentType: "application/json",
+        uri : "https://oso-tech.appspot.com",
+        headers : ["Content-Type": "application/json", "Authorization": "Bearer ${atomicState.authToken}"],
+        contentType : "application/json"
     ]
     if (plant.name != expected_plant_name) {
         log.debug "updating plant for - ${expected_plant_name}"
         plant_put_params["path"] = "/api/v1/plants/${plant.key}"
         def plant_put_body_map = [
-                name: expected_plant_name
+            name: expected_plant_name
         ]
         def plant_put_body_json_builder = new JsonBuilder(plant_put_body_map)
         plant_put_params["body"] = plant_put_body_json_builder.toString()
@@ -193,15 +182,12 @@ def checkAndUpdatePlantIfNeeded(plant, expected_plant_name){
 }
 
 def moistureHandler(event){
-//    event documentation found at https://graph.api.smartthings.com/ide/doc/event
-//    debugEvent("Received event value on moisture handler ${event.value} attached ${atomicState.attached_sensors}", True)
-    log.debug "Received event value on moisture handler ${event.value}"
     def expected_plant_name = "SmartThings - ${event.displayName}"
     def device_serial = getDeviceSerialFromEvent(event)
+    
     if (!atomicState.attached_sensors.containsKey(device_serial)){
         dock_sensor(device_serial, expected_plant_name)
-    }
-    else{
+    }else{
         def measurement_post_params = [
                 uri: "https://oso-tech.appspot.com",
                 path: "/api/v1/smartthings/links/${device_serial}/measurements",
@@ -232,14 +218,12 @@ def moistureHandler(event){
 }
 
 def batteryHandler(event){
-    // send to api
-//    log.debug "Received event value on batteryHandler ${event.value} attached ${atomicState.attached_sensors}"
     def expected_plant_name = "SmartThings - ${event.displayName}"
     def device_serial = getDeviceSerialFromEvent(event)
+    
     if (!atomicState.attached_sensors.containsKey(device_serial)){
         dock_sensor(device_serial, expected_plant_name)
-    }
-    else{
+    }else{
         def measurement_post_params = [
                 uri: "https://oso-tech.appspot.com",
                 path: "/api/v1/smartthings/links/${device_serial}/measurements",
@@ -259,198 +243,110 @@ def getDeviceSerialFromEvent(event){
     return match_result[0][1]
 }
 
-def oauthInitUrl()
-{
-    //done
-    log.debug "oauthInitUrl"
-    // def oauth_url = "https://api.PlantLink.com/authorize?response_type=code&client_id=qqwy6qo0c2lhTZGytelkQ5o8vlHgRsrO&redirect_uri=http://localhost/&scope=smartRead,smartWrite&state=abc123"
-
+def oauthInitUrl(){
     atomicState.oauthInitState = UUID.randomUUID().toString()
-
     def oauthParams = [
             response_type: "code",
-            client_id: getSmartThingsClientId(),
+            client_id: appSettings.client_id,
             state: atomicState.oauthInitState,
             redirect_uri: buildRedirectUrl()
     ]
     return "https://oso-tech.appspot.com/oauth/oauth2/authorize?" + toQueryString(oauthParams)
 }
 
-def buildRedirectUrl()
-{
-    log.debug "buildRedirectUrl"
-    // return serverUrl + "/api/smartapps/installations/${app.id}/token/${atomicState.accessToken}"
+def buildRedirectUrl(){
     return getServerUrl() + "/api/token/${atomicState.accessToken}/smartapps/installations/${app.id}/swapToken"
 }
 
-def swapToken()
-{
-    log.debug "swapping token: $params"
-    debugEvent ("swapping token: $params", true)
-
+def swapToken(){
     def code = params.code
     def oauthState = params.state
-
-
-    // https://www.PlantLink.com/home/token?grant_type=authorization_code&code=aliOpagDm3BqbRplugcs1AwdJE0ohxdB&client_id=qqwy6qo0c2lhTZGytelkQ5o8vlHgRsrO&redirect_uri=https://graph.api.smartthings.com/
-    def stcid = getSmartThingsClientId()
-
-
+    def stcid = appSettings.client_id
     def postParams = [
             method: 'POST',
             uri: "https://oso-tech.appspot.com",
             path: "/api/v1/oauth-token",
             query: [grant_type:'authorization_code', code:params.code, client_id:stcid,
-                    client_secret:getSmartThingsSecretKey(), redirect_uri: buildRedirectUrl()],
+                    client_secret:appSettings.client_secret, redirect_uri: buildRedirectUrl()],
     ]
-
-    log.debug "SCOTT: swapping token $params"
 
     def jsonMap
     httpPost(postParams) { resp ->
         jsonMap = resp.data
     }
 
-    log.debug "swapped token for $jsonMap"
-    debugEvent ("swapped token for $jsonMap", true)
-
     atomicState.refreshToken = jsonMap.refresh_token
     atomicState.authToken = jsonMap.access_token
 
     def html = """
-<!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=640">
-<title>Withings Connection</title>
-<style type="text/css">
-	@font-face {
-		font-family: 'Swiss 721 W01 Thin';
-		src: url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-thin-webfont.eot');
-		src: url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-thin-webfont.eot?#iefix') format('embedded-opentype'),
-			 url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-thin-webfont.woff') format('woff'),
-			 url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-thin-webfont.ttf') format('truetype'),
-			 url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-thin-webfont.svg#swis721_th_btthin') format('svg');
-		font-weight: normal;
-		font-style: normal;
-	}
-	@font-face {
-		font-family: 'Swiss 721 W01 Light';
-		src: url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-light-webfont.eot');
-		src: url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-light-webfont.eot?#iefix') format('embedded-opentype'),
-			 url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-light-webfont.woff') format('woff'),
-			 url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-light-webfont.ttf') format('truetype'),
-			 url('https://s3.amazonaws.com/smartapp-icons/Partner/fonts/swiss-721-light-webfont.svg#swis721_lt_btlight') format('svg');
-		font-weight: normal;
-		font-style: normal;
-	}
-	.container {
-		width: 560px;
-		padding: 40px;
-		/*background: #eee;*/
-		text-align: center;
-	}
-	img {
-		vertical-align: middle;
-	}
-	img:nth-child(2) {
-		margin: 0 30px;
-	}
-	p {
-		font-size: 2.2em;
-		font-family: 'Swiss 721 W01 Thin';
-		text-align: center;
-		color: #666666;
-		padding: 0 40px;
-		margin-bottom: 0;
-	}
-/*
-	p:last-child {
-		margin-top: 0px;
-	}
-*/
-	span {
-		font-family: 'Swiss 721 W01 Light';
-	}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+    .container {
+        padding:25px;
+    }
+    .flex1 {
+        width:33%;
+        float:left;
+        text-align: center;
+    }
+    p {
+        font-size: 2em;
+        font-family: Verdana, Geneva, sans-serif;
+        text-align: center;
+        color: #777;
+    }
 </style>
 </head>
 <body>
-	<div class="container">
-		<img src="https://oso-tech.appspot.com/images/PLlogo.png" alt="PlantLink icon" height="215" width="215"/>
-		<img src="https://s3.amazonaws.com/smartapp-icons/Partner/support/connected-device-icn%402x.png" alt="connected device icon" />
-		<img src="https://s3.amazonaws.com/smartapp-icons/Partner/support/st-logo%402x.png" alt="SmartThings logo" />
-		<p>Your PlantLink Account is now connected to SmartThings!</p>
-		<p>Click 'Done' to finish setup.</p>
-	</div>
+    <div class="container">
+        <div class="flex1"><img src="https://oso-tech.appspot.com/images/PLlogo.png" alt="PlantLink" height="75"/></div>
+        <div class="flex1"><img src="https://s3.amazonaws.com/smartapp-icons/Partner/support/connected-device-icn%402x.png" alt="connected to"  height="25" style="padding-top:25px;" /></div>
+        <div class="flex1"><img src="https://s3.amazonaws.com/smartapp-icons/Partner/support/st-logo%402x.png" alt="SmartThings" height="75"/></div>
+        <br clear="all">
+  </div>
+  <div class="container">
+        <p>Your PlantLink Account is now connected to SmartThings!</p>
+        <p style="color:green;">Click <strong>Done</strong> at the top right to finish setup.</p>
+    </div>
 </body>
 </html>
 """
-
     render contentType: 'text/html', data: html
 }
 
 private refreshAuthToken() {
-    log.debug "refreshing auth token"
-    debugEvent("refreshing OAUTH token", true)
-
-    def stcid = getSmartThingsClientId()
-
+    def stcid = appSettings.client_id
     def refreshParams = [
             method: 'POST',
             uri: "https://oso-tech.appspot.com",
             path: "/api/v1/oauth-token",
             query: [grant_type:'refresh_token', code:"${atomicState.refreshToken}", client_id:stcid,
-                    client_secret:getSmartThingsSecretKey()],
+                    client_secret:appSettings.client_secret],
     ]
-
-    //changed to httpPostJson
     try{
         def jsonMap
         httpPost(refreshParams) { resp ->
-            if(resp.status == 200)
-            {
-                log.debug "Token refreshed...calling saved RestAction now!"
-
-                debugEvent("Token refreshed ... calling saved RestAction now!", true)
-
-                log.debug resp
-
+            if(resp.status == 200){
+                log.debug "OAuth Token refreshed"
                 jsonMap = resp.data
-
                 if (resp.data) {
-
-                    log.debug resp.data
-                    debugEvent ("Response = ${resp.data}", true)
-
                     atomicState.refreshToken = resp?.data?.refresh_token
                     atomicState.authToken = resp?.data?.access_token
-
-                    debugEvent ("Refresh Token = ${atomicState.refreshToken}", true)
-                    debugEvent ("OAUTH Token = ${atomicState.authToken}", true)
-
                     if (data?.action && data?.action != "") {
                         log.debug data.action
-
                         "{data.action}"()
-
-                        //remove saved action
                         data.action = ""
                     }
-
                 }
                 data.action = ""
-            }
-            else
-            {
+            }else{
                 log.debug "refresh failed ${resp.status} : ${resp.status.code}"
             }
         }
-
-        // atomicState.refreshToken = jsonMap.refresh_token
-        // atomicState.authToken = jsonMap.access_token
     }
-    catch(Exception e)
-    {
+    catch(Exception e){
         log.debug "caught exception refreshing auth token: " + e
     }
 }
@@ -460,13 +356,7 @@ def parse_api_response(resp, message) {
         return true
     } else {
         log.error "sent ${message} Json & got http status ${resp.status} - ${resp.status.code}"
-        debugEvent("sent ${message} Json & got http status ${resp.status} - ${resp.status.code}", true)
-
-        //refresh the auth token
         if (resp.status == 401) {
-            //log.debug "Storing the failed action to try later"
-            log.debug "Refreshing your auth_token!"
-            debugEvent("Refreshing OAUTH Token", true)
             refreshAuthToken()
             return false
         } else {
@@ -476,12 +366,11 @@ def parse_api_response(resp, message) {
     }
 }
 
-def getServerUrl() { return "https://graph.api.smartthings.com" }
-def getSmartThingsClientId() { return "6479182133460992" }
-def getSmartThingsSecretKey() { return "a0c318b6-042f-4a91-8f56-654a6cc37c9a" }
+def getServerUrl() { 
+    return "https://graph.api.smartthings.com" 
+}
 
 def debugEvent(message, displayEvent) {
-
     def results = [
             name: "appdebug",
             descriptionText: message,
@@ -489,10 +378,8 @@ def debugEvent(message, displayEvent) {
     ]
     log.debug "Generating AppDebug Event: ${results}"
     sendEvent (results)
-
 }
 
-def toQueryString(Map m)
-{
+def toQueryString(Map m){
     return m.collect { k, v -> "${k}=${URLEncoder.encode(v.toString())}" }.sort().join("&")
 }
